@@ -46,6 +46,7 @@ const S = {
   renameMe: false,
   busy: false,
   howtoOpen: null,            // Så funkar det på Hem (null = standard)
+  listsHelpOpen: null,        // Så funkar listorna under Vänner
   fbKind: "forslag",          // feedback: forslag | fel
   fbText: "",
   isAdmin: false,
@@ -410,7 +411,7 @@ function setupHtml() {
       : `<div><button type="button" class="linkbtn" id="addTime">Lägga till en tid?</button></div>`}
     <div class="field"><label class="label" for="place">Var (valfritt)</label>
       <input type="text" id="place" placeholder="T.ex. Södermalm" value="${esc(d.place)}" maxlength="60"></div>
-    <div class="field"><span class="label">Vilka får se den här gången</span><div class="chips">${lists}</div>
+    <div class="field"><div class="listhead"><span class="label">Vilka får se den här gången</span><button type="button" class="linkbtn small" id="explainLists">Hur funkar listorna?</button></div><div class="chips">${lists}</div>
       ${n === 0 ? noAudienceWarning(d.lists) : `<p class="hint" id="audience">${friendsWord(n)} ser signalen. Ingen av dem får veta vilken lista de ligger på.</p>
       ${unsorted ? `<p class="hint">${friendsWord(unsorted)} ${unsorted === 1 ? "är inte sorterad" : "är inte sorterade"} och ser ingenting. <button type="button" class="linkbtn" data-tab="vanner">Sortera</button></p>` : ""}`}
     </div>
@@ -537,12 +538,29 @@ function listSection(l) {
   return `<section class="section">${head}${confirm}<div class="list">${rows}</div></section>`;
 }
 
+function listsHelpHtml() {
+  const startOpen = S.lists.length <= 1 || S.friends.some(isUnsorted);
+  const open = S.listsHelpOpen ?? startOpen;
+  return `<details class="howto" id="listsHelp" ${open ? "open" : ""}>
+      <summary>Så funkar listorna</summary>
+      <div class="pitch">
+        <p>Du kan lägga dina vänner i olika listor. Har du några vänner som du alltid vill ska se när du är sugen på en öl, lägger du dem i <b>Närmaste</b>.</p>
+        <p>Sedan kanske du har jobbkompisar, gamla gymnasiekompisar, folk från kören eller några ytligt bekanta, som du inte alltid är sugen att träffa, bara ibland. Dem lägger du i en ny lista.</p>
+        <p>Du kan sortera dem efter sammanhang, som ”Kören”, ”Jobbet” eller ”Familjen”. Eller efter hur ofta du vill träffa dem, som ”Ibland”, ”Nästan aldrig” eller ”I undantagsfall”.</p>
+        <p>När du tänder signalen väljer du vilken eller vilka listor som ska se den. Närmaste ser den alltid.</p>
+        <p><b>Vännerna ser inte vilken lista du har lagt dem i.</b> De ser bara om din signal är tänd eller släckt.</p>
+        <p class="hint">Vill du att någon aldrig ska se din signal, välj <b>Ser aldrig</b> i stället för en lista. Hen är kvar som vän men får inte veta något.</p>
+      </div>
+    </details>`;
+}
+
 function renderFriends() {
   const link = S.code ? BASE_URL + "?inbjudan=" + S.code : "";
   const unsorted = S.friends.filter(isUnsorted);
   const never = S.friends.filter(f => f.hidden);
   const canShare = typeof navigator.share === "function";
   return `<header><h1>Vänner</h1><p class="lead">Listorna syns bara för dig. En vän ser antingen din signal eller ingenting.</p></header>
+    ${listsHelpHtml()}
     <section class="card">
       <span class="label">Din inbjudningslänk</span>
       <div class="invite"><code id="inviteLink">${esc(link)}</code></div>
@@ -564,7 +582,7 @@ function renderFriends() {
       <div class="list">${never.map(friendRow).join("")}</div></section>` : ""}
     ${S.newListOpen
       ? `<form class="card" data-form="newList"><label class="label" for="listName">Namn på listan</label>
-          <input type="text" id="listName" placeholder="T.ex. Jobbet" maxlength="30">
+          <input type="text" id="listName" placeholder="T.ex. Kören, Jobbet eller Ibland" maxlength="30">
           <div class="btn-row"><button type="button" class="btn btn-quiet" data-cancel>Avbryt</button><button type="submit" class="btn btn-main">Skapa lista</button></div></form>`
       : `<div class="btn-row"><button type="button" class="btn btn-quiet" id="addList">Ny lista</button></div>`}`;
 }
@@ -697,6 +715,11 @@ document.addEventListener("click", async e => {
     document.getElementById("fbText")?.focus({ preventScroll: true });
     return;
   }
+  if (t.id === "explainLists") {
+    S.tab = "vanner"; S.listsHelpOpen = true; S.confirm = ""; render();
+    window.scrollTo(0, 0);
+    return;
+  }
   if (t.id === "openFeedbackAdmin") {
     S.tab = "konto"; S.confirm = ""; render();
     document.getElementById("feedbackAdmin")?.scrollIntoView({ block: "start" });
@@ -809,6 +832,7 @@ document.addEventListener("click", async e => {
 // "toggle" bubblar inte, därför capture
 document.addEventListener("toggle", e => {
   if (e.target.id === "howto") S.howtoOpen = e.target.open;
+  if (e.target.id === "listsHelp") S.listsHelpOpen = e.target.open;
 }, true);
 
 document.addEventListener("input", e => {

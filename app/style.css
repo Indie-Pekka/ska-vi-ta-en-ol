@@ -134,6 +134,8 @@ textarea { resize: vertical; min-height: 110px; line-height: 1.45; }
 .fb-text { white-space: pre-wrap; overflow-wrap: anywhere; }
 .fb-done summary { cursor: pointer; font-weight: 600; color: var(--muted); padding: 8px 0; }
 
+.linkbtn.small { font-size: 14px; }
+
 .status dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 15px; }
 .status dt { color: var(--muted); }
 .status dd { margin: 0; font-weight: 600; min-width: 0; overflow-wrap: anywhere; }
