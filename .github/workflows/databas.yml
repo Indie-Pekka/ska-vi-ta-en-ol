@@ -55,14 +55,14 @@ jobs:
             pub=$(echo "$keys" | jq -r .publicKey)
             priv=$(echo "$keys" | jq -r .privateKey)
             echo "::add-mask::$priv"
-            supabase secrets set --project-ref "$SUPABASE_PROJECT_ID" \
+            supabase secrets set --yes --project-ref "$SUPABASE_PROJECT_ID" \
               VAPID_PUBLIC_KEY="$pub" VAPID_PRIVATE_KEY="$priv" \
               VAPID_SUBJECT="https://indie-pekka.github.io/ska-vi-ta-en-ol/" > /dev/null
             echo "Notisnycklar skapade."
           fi
 
       - name: Publicera notisfunktionen
-        run: supabase functions deploy notify --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt
+        run: supabase functions deploy notify --yes --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt
 
       - name: Kolla notisfunktionen
         run: |
