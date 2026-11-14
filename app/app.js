@@ -196,12 +196,111 @@ async function loadAll() {
   }
 }
 
+// ======================================================
+// FIRANDE
+// ======================================================
+
+const CHEER_KEY = "ol-cheered";
+const cheeredMemory = new Set();
+
+function cheeredSet() {
+  const set = new Set(cheeredMemory);
+  try { JSON.parse(localStorage.getItem(CHEER_KEY) || "[]").forEach(k => set.add(k)); } catch (_) { /* bara minnet */ }
+  return set;
+}
+function saveCheered(set) {
+  set.forEach(k => cheeredMemory.add(k));
+  try { localStorage.setItem(CHEER_KEY, JSON.stringify([...set].slice(-300))); } catch (_) { /* bara minnet */ }
+}
+function namesText(names) {
+  if (names.length <= 1) return names[0] || "";
+  return names.slice(0, -1).join(", ") + " och " + names[names.length - 1];
+}
+const reducedMotion = () => window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+// Nya svar på min signal firas en gång
+function checkCheers() {
+  if (S.screen !== "app" || !S.signal || !S.responses.length) return;
+  const seen = cheeredSet();
+  const fresh = S.responses.filter(r => !seen.has(S.signal.id + ":" + r.responder_id));
+  if (!fresh.length) return;
+  fresh.forEach(r => seen.add(S.signal.id + ":" + r.responder_id));
+  saveCheered(seen);
+  celebrate(fresh.map(r => r.responder_name));
+}
+
+function celebrate(names) {
+  document.getElementById("cheer")?.remove();
+  const sig = S.signal;
+  const when = sig ? whenText(sig.day, sig.start_time, sig.time_ish) + (sig.place ? " · " + sig.place : "") : "";
+  const wrap = document.createElement("div");
+  wrap.id = "cheer";
+  wrap.className = "cheer";
+  wrap.setAttribute("role", "dialog");
+  wrap.setAttribute("aria-label", namesText(names) + " är på");
+  let bubbles = "";
+  if (!reducedMotion()) {
+    for (let i = 0; i < 46; i++) {
+      const size = 8 + Math.random() * 26;
+      bubbles += `<span class="bubble" style="left:${(Math.random() * 100).toFixed(1)}%;width:${size.toFixed(0)}px;height:${size.toFixed(0)}px;animation-delay:${(Math.random() * 1.6).toFixed(2)}s;animation-duration:${(2.6 + Math.random() * 2.4).toFixed(2)}s"></span>`;
+    }
+  }
+  wrap.innerHTML = `${bubbles}
+    <div class="cheer-card">
+      <div class="cheer-glasses" aria-hidden="true">🍻</div>
+      <h2>${esc(namesText(names))} är på!</h2>
+      ${when ? `<p>${esc(when)}</p>` : ""}
+      <button type="button" class="btn btn-main" id="cheerClose">Skål!</button>
+    </div>`;
+  document.body.appendChild(wrap);
+  try { navigator.vibrate?.([40, 60, 40]); } catch (_) { /* inte alla kan */ }
+  const close = () => wrap.remove();
+  wrap.addEventListener("click", ev => { if (ev.target === wrap || ev.target.id === "cheerClose") close(); });
+  document.getElementById("cheerClose")?.focus({ preventScroll: true });
+}
+
+// Skum som sprutar ur knappen när man själv svarar
+function burstAt(rect) {
+  if (!rect || reducedMotion()) return;
+  const layer = document.createElement("div");
+  layer.className = "burst";
+  layer.style.left = (rect.left + rect.width / 2) + "px";
+  layer.style.top = (rect.top + rect.height / 2) + "px";
+  for (let i = 0; i < 16; i++) {
+    const a = (Math.PI * 2 * i) / 16 + Math.random() * 0.3;
+    const d = 40 + Math.random() * 40;
+    const dot = document.createElement("span");
+    dot.style.setProperty("--dx", (Math.cos(a) * d).toFixed(0) + "px");
+    dot.style.setProperty("--dy", (Math.sin(a) * d - 20).toFixed(0) + "px");
+    dot.style.width = dot.style.height = (6 + Math.random() * 10).toFixed(0) + "px";
+    layer.appendChild(dot);
+  }
+  document.body.appendChild(layer);
+  setTimeout(() => layer.remove(), 900);
+}
+
+// Vänner som är sugna samma dag som jag och ser min signal
+function matchCards() {
+  const matches = S.feed.filter(f => f.both_keen && !f.answered);
+  if (!matches.length) return "";
+  return matches.map(f => {
+    const answeredMe = S.responses.some(r => r.responder_id === f.owner_id);
+    return `<section class="match-card">
+      <h2>Du och ${esc(f.owner_name)} är båda sugna ${esc(dayText(f.day))}!</h2>
+      <p>${esc(f.owner_name)}: ${esc(whenText(f.day, f.start_time, f.time_ish))}${f.place ? " · " + esc(f.place) : ""}</p>
+      ${answeredMe ? `<p><b>${esc(f.owner_name)} har redan svarat att hen är på din signal.</b></p>` : ""}
+      <div class="btn-row"><button type="button" class="btn btn-main" data-answer="${f.signal_id}">Jag är på!</button></div>
+    </section>`;
+  }).join("");
+}
+
 async function refresh(quiet) {
   if (S.screen !== "app") return;
   try {
     await loadAll();
     const typing = document.activeElement && /^(INPUT|SELECT|TEXTAREA)$/.test(document.activeElement.tagName);
     if (!typing) render();
+    checkCheers();
   } catch (e) {
     if (!quiet) toast(errorText(e));
   }
@@ -479,6 +578,7 @@ function renderHome() {
   const firstTime = !S.friends.length;
   return `${inviteBanner()}
     <header><h1>Ska vi ta en öl?</h1><p class="lead">Hej ${esc(S.me?.name || "")}! Säg att du är sugen utan att fråga någon rakt ut.</p></header>
+    ${matchCards()}
     ${howtoHtml(S.howtoOpen ?? firstTime)}
     <div class="hero">${glassHtml(on)}
       <div class="hero-text">${on ? "Du är sugen på en öl" : "Sugen på en öl?"}</div>
@@ -785,7 +885,14 @@ document.addEventListener("click", async e => {
     return;
   }
   if (t.dataset.answer) {
-    await act(async () => { await rpc("answer_signal", { target: t.dataset.answer }); await loadAll(); }, "Svaret går bara till den som tänt signalen");
+    const rect = t.getBoundingClientRect();
+    const friend = S.feed.find(f => f.signal_id === t.dataset.answer);
+    let ok = false;
+    await act(async () => { await rpc("answer_signal", { target: t.dataset.answer }); ok = true; await loadAll(); });
+    if (ok) {
+      burstAt(rect);
+      toast(`Skål! ${friend ? friend.owner_name + " får veta att du är på." : "Svaret går bara till den som tänt signalen."}`);
+    }
     return;
   }
   if (t.dataset.unanswer) {
@@ -1031,6 +1138,7 @@ async function enterApp() {
     toast(errorText(e));
   }
   render();
+  checkCheers();
 }
 
 async function enterAuth() {
