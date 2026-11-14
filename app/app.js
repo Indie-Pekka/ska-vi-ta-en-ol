@@ -45,7 +45,9 @@ const S = {
   newListOpen: false,
   renameMe: false,
   busy: false,
-  howtoOpen: null             // Så funkar det på Hem (null = standard)
+  howtoOpen: null,            // Så funkar det på Hem (null = standard)
+  fbKind: "forslag",          // feedback: forslag | fel
+  fbText: ""
 };
 
 // ======================================================
@@ -473,7 +475,8 @@ function renderHome() {
     ${showSetup ? setupHtml() : on ? statusHtml() : ""}
     <section class="section"><h2>Sugna vänner</h2>
       <div class="list">${S.feed.length ? S.feed.map(feedRow).join("") : `<p class="empty">Ingen av dina vänner har tänt sin signal för dig.</p>`}</div>
-    </section>`;
+    </section>
+    <div class="btn-row"><button type="button" class="btn btn-quiet" id="openFeedback">Tyck till om appen</button></div>`;
 }
 
 // ---------- Vänner ----------
@@ -554,6 +557,19 @@ function renderFriends() {
 
 // ---------- Konto ----------
 
+function feedbackHtml() {
+  const kinds = [["forslag", "Förslag"], ["fel", "Något funkar inte"]].map(([k, label]) =>
+    `<button type="button" class="chip" data-fbkind="${k}" aria-pressed="${S.fbKind === k}">${label}</button>`).join("");
+  return `<form class="card" data-form="feedback" id="feedback" novalidate>
+      <h2>Tyck till om appen</h2>
+      <p class="hint">Idéer på ändringar och nya funktioner, eller något som inte fungerar. Hugo läser allt och ser vem som skrivit.</p>
+      <div class="chips">${kinds}</div>
+      <label class="label" for="fbText">${S.fbKind === "fel" ? "Vad hände, och vad försökte du göra?" : "Ditt förslag"}</label>
+      <textarea id="fbText" rows="5" maxlength="2000">${esc(S.fbText)}</textarea>
+      <button type="submit" class="btn btn-main" ${S.busy ? "disabled" : ""}>Skicka</button>
+    </form>`;
+}
+
 function renderAccount() {
   const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone;
   const ios = /iphone|ipad|ipod/i.test(navigator.userAgent);
@@ -570,6 +586,7 @@ function renderAccount() {
       <p>${ios
         ? "Tryck på Dela-knappen i Safari och välj <b>Lägg till på hemskärmen</b>. Då öppnas appen som en vanlig app."
         : "Öppna webbläsarens meny och välj <b>Installera app</b> eller <b>Lägg till på startskärmen</b>."}</p></section>`}
+    ${feedbackHtml()}
     ${PROTOTYPE_NOTE}
     <section class="card"><h2>Så funkar det</h2><div class="pitch">${pitchBody()}</div></section>
     <div class="btn-row"><button type="button" class="btn btn-danger" id="logout">Logga ut</button></div>`;
@@ -629,6 +646,14 @@ document.addEventListener("click", async e => {
     render();
     return;
   }
+  if (t.id === "openFeedback") {
+    S.tab = "konto"; S.confirm = ""; render();
+    const form = document.getElementById("feedback");
+    form?.scrollIntoView({ block: "start" });
+    document.getElementById("fbText")?.focus({ preventScroll: true });
+    return;
+  }
+  if (t.dataset.fbkind) { S.fbKind = t.dataset.fbkind; render(); document.getElementById("fbText")?.focus({ preventScroll: true }); return; }
   if (t.id === "addTime") {
     S.draft.timeOpen = true;
     if (!S.draft.time) S.draft.time = "19:00";
@@ -730,6 +755,7 @@ document.addEventListener("toggle", e => {
 
 document.addEventListener("input", e => {
   if (e.target.id === "place") S.draft.place = e.target.value;
+  if (e.target.id === "fbText") S.fbText = e.target.value;
   if (e.target.id === "time" || e.target.id === "ish") {
     if (e.target.id === "time") S.draft.time = e.target.value;
     else S.draft.ish = e.target.checked;
@@ -839,6 +865,20 @@ document.addEventListener("submit", async e => {
       S.renameList = "";
       await loadAll();
     }, "Namnet är ändrat");
+    return;
+  }
+
+  if (kind === "feedback") {
+    const message = S.fbText.trim();
+    if (!message) { toast("Skriv något först"); return; }
+    await act(async () => {
+      const { error } = await sb.from("feedback").insert({
+        kind: S.fbKind, message, device: navigator.userAgent.slice(0, 300)
+      });
+      if (error) throw error;
+      S.fbText = "";
+      S.fbKind = "forslag";
+    }, "Tack! Hugo får det du skrev.");
     return;
   }
 
