@@ -1,0 +1,16 @@
+{
+  "name": "Ska vi ta en öl?",
+  "short_name": "Ta en öl?",
+  "description": "Säg att du är sugen på sällskap utan att fråga någon rakt ut.",
+  "lang": "sv",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#ECEFEA",
+  "theme_color": "#ECEFEA",
+  "icons": [
+    { "src": "icons/icon-192.png", "sizes": "192x192", "type": "image/png" },
+    { "src": "icons/icon-512.png", "sizes": "512x512", "type": "image/png" },
+    { "src": "icons/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

@@ -1,0 +1,4 @@
+# Supabase-projektet "ska-vi-ta-en-ol".
+# Databasen ändras genom att lägga nya filer i supabase/migrations;
+# GitHub Actions kör dem mot projektet när de kommer till main.
+project_id = "ska-vi-ta-en-ol"
