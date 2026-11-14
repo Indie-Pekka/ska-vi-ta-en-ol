@@ -240,7 +240,7 @@ function pitchHtml() {
 function pitchBody() {
   return `<p>Ibland är man sugen på en öl med någon, men vet inte vem som är ledig. Att skriva det öppet på sociala medier känns som att ropa ut att man saknar vänner, och fel person kan svara. Att fråga en i taget tar tid, och ofta blir det ingenting.</p>
       <ol class="steps">
-        <li><span><b>Tryck på glaset.</b> I kväll eller någon annan dag i veckan, gärna med var.</span></li>
+        <li><span><b>Tryck på glaset.</b> I kväll eller någon annan dag i veckan, gärna med ett förslag om plats.</span></li>
         <li><span><b>Välj vilka som ser det.</b> Dina närmaste ser alltid. Andra listor bockar du i när du vill.</span></li>
         <li><span><b>Ingen blir bortvald.</b> Den som inte får se din signal ser ingenting, inte heller vilken lista hen ligger på.</span></li>
         <li><span><b>Den som är sugen svarar ”Jag är på!”</b> Svaret går bara till dig. Sedan ses ni.</span></li>
