@@ -83,6 +83,7 @@ p { margin: 0; }
   font-family: var(--display); font-weight: 800; font-size: 15px;
 }
 .steps b { display: block; }
+.steps b.inline { display: inline; }
 
 /* Så funkar det (utfällbar på Hem) */
 .howto { background: var(--surface); border: 1px solid var(--line); border-radius: 14px; }
