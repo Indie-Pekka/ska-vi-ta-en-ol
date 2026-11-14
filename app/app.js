@@ -268,7 +268,7 @@ function pitchBody() {
   return `<p>Ibland är man sugen på en öl med någon, men vet inte vem som är ledig. Att skriva det öppet på sociala medier känns som att ropa ut att man saknar vänner, och fel person kan svara. Att fråga en i taget tar tid, och ofta blir det ingenting.</p>
       <ol class="steps">
         <li><span><b class="inline">Tryck på glaset</b> och välj om det är i kväll eller någon annan dag i veckan som du är sugen, gärna med ett förslag om plats.</span></li>
-        <li><span><b>Välj vilka som ser det.</b> Dina närmaste ser alltid. Andra listor bockar du i när du vill.</span></li>
+        <li><span><b>Välj vilka som ser det.</b> De som är <b class="inline">Alltid inbjudna</b> ser det alltid. Andra listor bockar du i när du vill.</span></li>
         <li><span><b>Ingen blir bortvald.</b> Den som inte får se din signal ser ingenting, inte heller vilken lista hen ligger på.</span></li>
         <li><span><b>Den som är sugen svarar ”Jag är på!”</b> Svaret går bara till dig. Sedan ses ni.</span></li>
       </ol>
@@ -384,7 +384,7 @@ function noAudienceWarning(listIds) {
   if (unticked) parts.push(`${friendsWord(unticked)} ${unticked === 1 ? "ligger i en lista" : "ligger i listor"} som du inte bockat i här.`);
   return `<div class="notice" role="alert">
     <b>Ingen kommer att se din signal</b>
-    <span>Vännerna ser bara signalen om de ligger i en lista som får se den: <b>Närmaste</b> ser alltid, andra listor bara när du bockar i dem.</span>
+    <span>Vännerna ser bara signalen om de ligger i en lista som får se den: <b>Alltid inbjudna</b> ser den alltid, andra listor bara när du bockar i dem.</span>
     ${parts.length ? `<span>${parts.join(" ")}</span>` : ""}
     ${unsorted ? `<div><button type="button" class="small-btn" data-tab="vanner">Sortera vänner</button></div>` : ""}
   </div>`;
@@ -546,10 +546,10 @@ function listsHelpHtml() {
   return `<details class="howto" id="listsHelp" ${open ? "open" : ""}>
       <summary>Så funkar listorna</summary>
       <div class="pitch">
-        <p>Du kan lägga dina vänner i olika listor. Har du några vänner som du alltid vill ska se när du är sugen på en öl, lägger du dem i <b>Närmaste</b>.</p>
+        <p>Du kan lägga dina vänner i olika listor. Har du några vänner som du alltid vill ska se när du är sugen på en öl, lägger du dem i <b>Alltid inbjudna</b>.</p>
         <p>Sedan kanske du har jobbkompisar, gamla gymnasiekompisar, folk från kören eller några ytligt bekanta, som du inte alltid är sugen att träffa, bara ibland. Dem lägger du i en ny lista.</p>
         <p>Du kan sortera dem efter sammanhang, som ”Kören”, ”Jobbet” eller ”Familjen”. Eller efter hur ofta du vill träffa dem, som ”Ibland”, ”Nästan aldrig” eller ”I undantagsfall”.</p>
-        <p>När du tänder signalen väljer du vilken eller vilka listor som ska se den. Närmaste ser den alltid.</p>
+        <p>När du tänder signalen väljer du vilken eller vilka listor som ska se den. Alltid inbjudna ser den alltid.</p>
         <p><b>Vännerna ser inte vilken lista du har lagt dem i.</b> De ser bara om din signal är tänd eller släckt.</p>
         <p class="hint">Vill du att någon aldrig ska se din signal, välj <b>Ser aldrig</b> i stället för en lista. Hen är kvar som vän men får inte veta något.</p>
       </div>
