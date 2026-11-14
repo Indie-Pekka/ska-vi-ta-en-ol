@@ -300,6 +300,30 @@ function audience(listIds) {
 }
 function friendsWord(n) { return n === 1 ? "1 vän" : n + " vänner"; }
 
+// Varning när ingen kommer att se signalen
+function noAudienceWarning(listIds) {
+  if (audience(listIds) > 0) return "";
+  if (!S.friends.length) {
+    return `<div class="notice" role="alert">
+      <b>Ingen kan se din signal än</b>
+      <span>Du har inga vänner i appen. Bjud in någon – först när ni är vänner kan de se när du är sugen.</span>
+      <div><button type="button" class="small-btn" data-tab="vanner">Bjud in vänner</button></div>
+    </div>`;
+  }
+  const always = alwaysIds();
+  const unsorted = S.friends.filter(f => !f.list_id).length;
+  const unticked = S.friends.filter(f => f.list_id && !always.has(f.list_id) && !listIds.includes(f.list_id)).length;
+  const parts = [];
+  if (unsorted) parts.push(`${friendsWord(unsorted)} ${unsorted === 1 ? "är inte sorterad" : "är inte sorterade"} i någon lista än.`);
+  if (unticked) parts.push(`${friendsWord(unticked)} ${unticked === 1 ? "ligger i en lista" : "ligger i listor"} som du inte bockat i här.`);
+  return `<div class="notice" role="alert">
+    <b>Ingen kommer att se din signal</b>
+    <span>Vännerna ser bara signalen om de ligger i en lista som får se den: <b>Närmaste</b> ser alltid, andra listor bara när du bockar i dem.</span>
+    ${parts.length ? `<span>${parts.join(" ")}</span>` : ""}
+    ${unsorted ? `<div><button type="button" class="small-btn" data-tab="vanner">Sortera vänner</button></div>` : ""}
+  </div>`;
+}
+
 function setupHtml() {
   const d = S.draft;
   const today = appToday();
@@ -315,12 +339,12 @@ function setupHtml() {
     <div class="field"><label class="label" for="place">Var (valfritt)</label>
       <input type="text" id="place" placeholder="T.ex. Södermalm, efter 19" value="${esc(d.place)}" maxlength="60"></div>
     <div class="field"><span class="label">Vilka får se den här gången</span><div class="chips">${lists}</div>
-      <p class="hint" id="audience">${friendsWord(n)} ser signalen. Ingen av dem får veta vilken lista de ligger på.</p>
-      ${unsorted ? `<p class="hint">${friendsWord(unsorted)} ${unsorted === 1 ? "är inte sorterad" : "är inte sorterade"} och ser ingenting. <button type="button" class="linkbtn" data-tab="vanner">Sortera</button></p>` : ""}
+      ${n === 0 ? noAudienceWarning(d.lists) : `<p class="hint" id="audience">${friendsWord(n)} ser signalen. Ingen av dem får veta vilken lista de ligger på.</p>
+      ${unsorted ? `<p class="hint">${friendsWord(unsorted)} ${unsorted === 1 ? "är inte sorterad" : "är inte sorterade"} och ser ingenting. <button type="button" class="linkbtn" data-tab="vanner">Sortera</button></p>` : ""}`}
     </div>
     <div class="btn-row">
       <button type="button" class="btn btn-quiet" id="cancelSetup">Avbryt</button>
-      <button type="button" class="btn btn-main" id="light" ${S.busy ? "disabled" : ""}>${S.editing ? "Spara" : "Tänd signalen"}</button>
+      <button type="button" class="btn btn-main" id="light" ${S.busy ? "disabled" : ""}>${S.editing ? (n === 0 ? "Spara ändå" : "Spara") : (n === 0 ? "Tänd ändå" : "Tänd signalen")}</button>
     </div>
     <p class="hint">Signalen slocknar av sig själv ${expiryText(d.day)}.</p>
   </section>`;
@@ -334,6 +358,7 @@ function statusHtml() {
         <div class="who"><b>${esc(r.responder_name)}</b><span class="reply">Är på!</span></div></div>`).join("")
     : `<p class="empty">Inga svar än. Titta in igen om en stund.</p>`;
   return `<section class="card status" aria-label="Din signal">
+    ${noAudienceWarning(s.lists || [])}
     <dl>
       <dt>När</dt><dd>${dayLabel(s.day)}</dd>
       ${s.place ? `<dt>Var</dt><dd>${esc(s.place)}</dd>` : ""}
