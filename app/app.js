@@ -47,7 +47,9 @@ const S = {
   busy: false,
   howtoOpen: null,            // Så funkar det på Hem (null = standard)
   fbKind: "forslag",          // feedback: forslag | fel
-  fbText: ""
+  fbText: "",
+  isAdmin: false,
+  feedbackList: []
 };
 
 // ======================================================
@@ -181,6 +183,14 @@ async function loadAll() {
   S.friends = rows
     .map(r => ({ id: r.friend, name: names.get(r.friend) || "Okänd", list_id: r.list_id, hidden: !!r.hidden }))
     .sort((a, b) => a.name.localeCompare(b.name, "sv"));
+
+  // Feedbacklistan (bara admin)
+  const admin = await sb.rpc("is_admin");
+  S.isAdmin = !admin.error && admin.data === true;
+  if (S.isAdmin) {
+    const fb = await sb.rpc("get_feedback");
+    S.feedbackList = fb.error ? [] : (fb.data || []);
+  }
 }
 
 async function refresh(quiet) {
@@ -476,7 +486,11 @@ function renderHome() {
     <section class="section"><h2>Sugna vänner</h2>
       <div class="list">${S.feed.length ? S.feed.map(feedRow).join("") : `<p class="empty">Ingen av dina vänner har tänt sin signal för dig.</p>`}</div>
     </section>
-    <div class="btn-row"><button type="button" class="btn btn-quiet" id="openFeedback">Tyck till om appen</button></div>`;
+    <div class="btn-row">
+      <button type="button" class="btn btn-quiet" id="openFeedback">Tyck till om appen</button>
+      ${S.isAdmin ? (() => { const n = S.feedbackList.filter(f => f.status !== "klar").length;
+        return `<button type="button" class="btn ${n ? "btn-main" : "btn-quiet"}" id="openFeedbackAdmin">Feedback${n ? ` (${n} ny${n === 1 ? "" : "a"})` : ""}</button>`; })() : ""}
+    </div>`;
 }
 
 // ---------- Vänner ----------
@@ -557,6 +571,35 @@ function renderFriends() {
 
 // ---------- Konto ----------
 
+function shortDevice(ua) {
+  if (/iphone|ipad/i.test(ua)) return "Iphone";
+  if (/android/i.test(ua)) return "Android";
+  return ua ? "Dator" : "";
+}
+function shortDate(ts) {
+  return new Intl.DateTimeFormat("sv-SE", { timeZone: "Europe/Stockholm", day: "numeric", month: "short", hour: "2-digit", minute: "2-digit" })
+    .format(new Date(ts)).replace(":", ".");
+}
+function feedbackItem(f) {
+  const done = f.status === "klar";
+  return `<div class="fb-item">
+      <div class="fb-meta"><span class="fb-kind ${f.kind === "fel" ? "is-bug" : ""}">${f.kind === "fel" ? "Funkar inte" : "Förslag"}</span>
+        <b>${esc(f.author_name || "Okänd")}</b><span>${esc(shortDate(f.created_at))}${f.device ? " · " + esc(shortDevice(f.device)) : ""}</span></div>
+      <p class="fb-text">${esc(f.message)}</p>
+      <div><button type="button" class="small-btn" data-fbstatus="${f.id}" data-to="${done ? "ny" : "klar"}">${done ? "Öppna igen" : "Markera klar"}</button></div>
+    </div>`;
+}
+function feedbackAdminHtml() {
+  if (!S.isAdmin) return "";
+  const open = S.feedbackList.filter(f => f.status !== "klar");
+  const done = S.feedbackList.filter(f => f.status === "klar");
+  return `<section class="card" id="feedbackAdmin">
+      <div class="listhead"><h2>Feedback från testarna</h2><span class="tag">Bara du ser den här</span></div>
+      ${open.length ? open.map(feedbackItem).join("") : `<p class="empty">Ingen ny feedback.</p>`}
+      ${done.length ? `<details class="fb-done"><summary>Klara (${done.length})</summary>${done.map(feedbackItem).join("")}</details>` : ""}
+    </section>`;
+}
+
 function feedbackHtml() {
   const kinds = [["forslag", "Förslag"], ["fel", "Något funkar inte"]].map(([k, label]) =>
     `<button type="button" class="chip" data-fbkind="${k}" aria-pressed="${S.fbKind === k}">${label}</button>`).join("");
@@ -586,6 +629,7 @@ function renderAccount() {
       <p>${ios
         ? "Tryck på Dela-knappen i Safari och välj <b>Lägg till på hemskärmen</b>. Då öppnas appen som en vanlig app."
         : "Öppna webbläsarens meny och välj <b>Installera app</b> eller <b>Lägg till på startskärmen</b>."}</p></section>`}
+    ${feedbackAdminHtml()}
     ${feedbackHtml()}
     ${PROTOTYPE_NOTE}
     <section class="card"><h2>Så funkar det</h2><div class="pitch">${pitchBody()}</div></section>
@@ -651,6 +695,20 @@ document.addEventListener("click", async e => {
     const form = document.getElementById("feedback");
     form?.scrollIntoView({ block: "start" });
     document.getElementById("fbText")?.focus({ preventScroll: true });
+    return;
+  }
+  if (t.id === "openFeedbackAdmin") {
+    S.tab = "konto"; S.confirm = ""; render();
+    document.getElementById("feedbackAdmin")?.scrollIntoView({ block: "start" });
+    return;
+  }
+  if (t.dataset.fbstatus) {
+    const id = t.dataset.fbstatus, to = t.dataset.to;
+    await act(async () => {
+      await rpc("set_feedback_status", { target: id, new_status: to });
+      const item = S.feedbackList.find(f => f.id === id);
+      if (item) item.status = to;
+    }, to === "klar" ? "Markerad som klar" : "Öppnad igen");
     return;
   }
   if (t.dataset.fbkind) { S.fbKind = t.dataset.fbkind; render(); document.getElementById("fbText")?.focus({ preventScroll: true }); return; }
