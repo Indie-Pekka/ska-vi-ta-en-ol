@@ -1,7 +1,7 @@
 // Enkel service worker: gör appen installerbar och visar
 // senast hämtade version om nätet är borta. Hämtar alltid
 // nytt först, så en ny version syns direkt.
-const CACHE = "ol-v1";
+const CACHE = "ol-v2";
 const SHELL = ["./", "index.html", "style.css", "app.js", "config.js", "manifest.webmanifest", "icons/icon-192.png"];
 
 self.addEventListener("install", event => {
@@ -21,8 +21,11 @@ self.addEventListener("fetch", event => {
   const url = new URL(req.url);
   // Bara appens egna filer – aldrig databasen
   if (req.method !== "GET" || url.origin !== self.location.origin) return;
+  // version.txt ska aldrig sparas
+  if (url.pathname.endsWith("/version.txt")) return;
   event.respondWith(
-    fetch(req)
+    // no-cache = fråga alltid servern om filen ändrats
+    fetch(req, { cache: "no-cache" })
       .then(res => {
         if (res.ok) {
           const copy = res.clone();

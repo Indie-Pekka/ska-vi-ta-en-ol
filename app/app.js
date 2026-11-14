@@ -104,7 +104,7 @@ function esc(s) {
 }
 function initial(name) { return esc((String(name || "?").trim()[0] || "?").toUpperCase()); }
 
-function toast(msg, action) {
+function toast(msg, action, ms) {
   const t = document.getElementById("toast");
   t.textContent = msg;
   if (action) {
@@ -121,7 +121,7 @@ function toast(msg, action) {
   }
   t.hidden = false;
   clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => { t.hidden = true; }, action ? 10000 : 3200);
+  toast.timer = setTimeout(() => { t.hidden = true; }, ms || (action ? 10000 : 3200));
 }
 
 function storeGet(key) { try { return localStorage.getItem(key) || ""; } catch (_) { return ""; } }
@@ -1040,8 +1040,45 @@ async function start() {
   document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refresh(true); });
 }
 
-if ("serviceWorker" in navigator) {
-  navigator.serviceWorker.register("sw.js").catch(() => { /* appen fungerar ändå */ });
+// ======================================================
+// NYA VERSIONER
+// version.txt skrivs vid varje publicering. Ändras den
+// medan appen är öppen erbjuds en omladdning.
+// ======================================================
+
+let loadedVersion = "";
+let versionOffered = false;
+
+async function fetchVersion() {
+  try {
+    const res = await fetch("version.txt?t=" + Date.now(), { cache: "no-store" });
+    return res.ok ? (await res.text()).trim() : "";
+  } catch (_) {
+    return "";
+  }
 }
+
+async function checkForUpdate() {
+  if (versionOffered) return;
+  const v = await fetchVersion();
+  if (!v) return;
+  if (!loadedVersion) { loadedVersion = v; return; }
+  if (v !== loadedVersion) {
+    versionOffered = true;
+    toast("Det finns en ny version av appen", { label: "Ladda om", run: () => location.reload() }, 60000);
+  }
+}
+
+if ("serviceWorker" in navigator) {
+  navigator.serviceWorker.register("sw.js", { updateViaCache: "none" })
+    .then(reg => document.addEventListener("visibilitychange", () => {
+      if (document.visibilityState === "visible") reg.update().catch(() => {});
+    }))
+    .catch(() => { /* appen fungerar ändå */ });
+}
+
+checkForUpdate();
+setInterval(() => { if (document.visibilityState === "visible") checkForUpdate(); }, 5 * 60000);
+document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") checkForUpdate(); });
 
 start();
