@@ -1,7 +1,7 @@
 // Enkel service worker: gör appen installerbar och visar
 // senast hämtade version om nätet är borta. Hämtar alltid
 // nytt först, så en ny version syns direkt.
-const CACHE = "ol-v2";
+const CACHE = "ol-v3";
 const SHELL = ["./", "index.html", "style.css", "app.js", "config.js", "manifest.webmanifest", "icons/icon-192.png"];
 
 self.addEventListener("install", event => {
@@ -34,5 +34,30 @@ self.addEventListener("fetch", event => {
         return res;
       })
       .catch(() => caches.match(req, { ignoreSearch: true }).then(r => r || caches.match("./")))
+  );
+});
+
+// ---------- Notiser ----------
+self.addEventListener("push", event => {
+  let d = {};
+  try { d = event.data ? event.data.json() : {}; }
+  catch (_) { d = { body: event.data ? event.data.text() : "" }; }
+  event.waitUntil(self.registration.showNotification(d.title || "Ska vi ta en öl?", {
+    body: d.body || "",
+    tag: d.tag || undefined,
+    renotify: !!d.tag,
+    icon: "icons/icon-192.png",
+    badge: "icons/icon-192.png",
+    data: { url: "./" }
+  }));
+});
+
+self.addEventListener("notificationclick", event => {
+  event.notification.close();
+  event.waitUntil(
+    self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(list => {
+      for (const c of list) if ("focus" in c) return c.focus();
+      return self.clients.openWindow(event.notification.data?.url || "./");
+    })
   );
 });

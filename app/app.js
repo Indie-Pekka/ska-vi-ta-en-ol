@@ -51,7 +51,8 @@ const S = {
   fbText: "",
   isAdmin: false,
   feedbackList: [],
-  stats: null
+  stats: null,
+  push: { supported: false, ios: false, standalone: false, permission: "default", subscribed: false, busy: false }
 };
 
 // ======================================================
@@ -156,7 +157,7 @@ async function rpc(name, args) {
 async function loadAll() {
   const uid = S.session.user.id;
   const [me, lists, friends, invite, signal, feed, responses] = await Promise.all([
-    sb.from("profiles").select("id, name").eq("id", uid).maybeSingle(),
+    sb.from("profiles").select("id, name, notify_answer, notify_signal, notify_match").eq("id", uid).maybeSingle(),
     sb.from("lists").select("id, name, always, sort_order, created_at").order("always", { ascending: false }).order("sort_order").order("created_at"),
     sb.from("friends").select("friend, list_id, hidden, created_at"),
     sb.from("invites").select("code").maybeSingle(),
@@ -292,6 +293,132 @@ function matchCards() {
       <div class="btn-row"><button type="button" class="btn btn-main" data-answer="${f.signal_id}">Jag är på!</button></div>
     </section>`;
   }).join("");
+}
+
+// ======================================================
+// NOTISER
+// ======================================================
+
+const NOTIFY_URL = SUPABASE_URL + "/functions/v1/notify";
+const PUSH_DISMISS_KEY = "ol-push-dismissed";
+
+function pushEnv() {
+  const ua = navigator.userAgent;
+  const ios = /iphone|ipad|ipod/i.test(ua) || (navigator.platform === "MacIntel" && navigator.maxTouchPoints > 1);
+  const standalone = window.matchMedia("(display-mode: standalone)").matches || navigator.standalone === true;
+  const supported = "serviceWorker" in navigator && "PushManager" in window && "Notification" in window;
+  return { ios, standalone, supported };
+}
+
+// Väntar högst 4 s, så att appen aldrig fastnar om service workern inte startar
+async function pushRegistration() {
+  if (!("serviceWorker" in navigator)) return null;
+  const timeout = new Promise(res => setTimeout(() => res(null), 4000));
+  try { return await Promise.race([navigator.serviceWorker.ready, timeout]); } catch (_) { return null; }
+}
+
+function b64ToBytes(b64) {
+  const pad = "=".repeat((4 - (b64.length % 4)) % 4);
+  const raw = atob((b64 + pad).replace(/-/g, "+").replace(/_/g, "/"));
+  return Uint8Array.from(raw, c => c.charCodeAt(0));
+}
+
+// Läs av läget på den här telefonen (och spara adressen igen om den finns)
+async function checkPush() {
+  const env = pushEnv();
+  Object.assign(S.push, env);
+  S.push.permission = "Notification" in window ? Notification.permission : "default";
+  if (!env.supported) { S.push.subscribed = false; return; }
+  const reg = await pushRegistration();
+  const sub = reg ? await reg.pushManager.getSubscription().catch(() => null) : null;
+  S.push.subscribed = !!sub && S.push.permission === "granted";
+  if (sub && S.push.subscribed) saveSubscription(sub).catch(() => {});
+}
+
+async function saveSubscription(sub) {
+  const j = sub.toJSON();
+  await rpc("save_push_subscription", {
+    sub_endpoint: j.endpoint, sub_p256dh: j.keys.p256dh, sub_auth: j.keys.auth,
+    sub_user_agent: navigator.userAgent.slice(0, 300)
+  });
+}
+
+async function enablePush() {
+  const env = pushEnv();
+  if (!env.supported) throw new Error(env.ios && !env.standalone
+    ? "Lägg appen på hemskärmen och öppna den därifrån först."
+    : "Den här webbläsaren kan inte ta emot notiser.");
+  const permission = await Notification.requestPermission();
+  S.push.permission = permission;
+  if (permission !== "granted") throw new Error("Notiser är inte tillåtna. Du kan ändra det i telefonens inställningar.");
+  const res = await fetch(NOTIFY_URL, { headers: { apikey: SUPABASE_KEY } });
+  const info = await res.json().catch(() => ({}));
+  if (!info.publicKey) throw new Error("Notiserna är inte uppsatta på servern än. Försök igen om en stund.");
+  const reg = await pushRegistration();
+  if (!reg) throw new Error("Appen kunde inte starta notiser. Ladda om och försök igen.");
+  let sub = await reg.pushManager.getSubscription();
+  if (!sub) sub = await reg.pushManager.subscribe({ userVisibleOnly: true, applicationServerKey: b64ToBytes(info.publicKey) });
+  await saveSubscription(sub);
+  S.push.subscribed = true;
+}
+
+async function disablePush() {
+  const reg = await pushRegistration();
+  const sub = reg ? await reg.pushManager.getSubscription() : null;
+  if (sub) {
+    await rpc("delete_push_subscription", { sub_endpoint: sub.endpoint }).catch(() => {});
+    await sub.unsubscribe().catch(() => {});
+  }
+  S.push.subscribed = false;
+}
+
+// Be servern skicka notiser (påverkar inte appen om det misslyckas)
+function notifyServer(body) {
+  try { sb.functions.invoke("notify", { body }).catch(() => {}); } catch (_) { /* notiser är en bonus */ }
+}
+
+function pushPromptHtml() {
+  const p = S.push;
+  if (!p.supported || p.subscribed || p.permission === "denied") return "";
+  try { if (localStorage.getItem(PUSH_DISMISS_KEY)) return ""; } catch (_) { /* visa */ }
+  return `<div class="banner">
+      <b>Vill du få en notis när någon är sugen?</b>
+      <span class="hint">Till exempel när en vän tänder sin signal eller svarar att hen är på.</span>
+      <div class="btn-row">
+        <button type="button" class="btn btn-quiet" id="pushLater">Inte nu</button>
+        <button type="button" class="btn btn-main" id="pushOn" ${p.busy ? "disabled" : ""}>Slå på notiser</button>
+      </div>
+    </div>`;
+}
+
+function pushCardHtml() {
+  const p = S.push;
+  const me = S.me || {};
+  let status;
+  if (!p.supported) {
+    status = p.ios && !p.standalone
+      ? `<p>På Iphone fungerar notiser bara när appen ligger på hemskärmen. Lägg till den (se ovan), öppna den därifrån och slå på notiser här.</p>`
+      : `<p>Den här webbläsaren kan inte ta emot notiser. Prova Chrome, Safari eller Firefox.</p>`;
+  } else if (p.permission === "denied") {
+    status = `<p>Notiser är blockerade för appen. Tillåt dem i telefonens eller webbläsarens inställningar och ladda om.</p>`;
+  } else if (!p.subscribed) {
+    status = `<p class="hint">Notiserna är avstängda på den här telefonen.</p>
+      <div class="btn-row"><button type="button" class="btn btn-main" id="pushOn" ${p.busy ? "disabled" : ""}>Slå på notiser</button></div>`;
+  } else {
+    const opt = (key, label) => `<label class="check" for="${key}"><input type="checkbox" id="${key}" data-notify="${key}" ${me[key] !== false ? "checked" : ""}> ${label}</label>`;
+    status = `<p class="hint">Notiserna är på för den här telefonen.</p>
+      <div class="field">
+        ${opt("notify_answer", "När någon är på min signal")}
+        ${opt("notify_signal", "När en vän tänder sin signal")}
+        ${opt("notify_match", "När vi är sugna samma dag")}
+      </div>
+      <div class="btn-row">
+        <button type="button" class="btn btn-quiet" id="pushTest">Skicka en testnotis</button>
+        <button type="button" class="btn btn-danger" id="pushOff">Stäng av här</button>
+      </div>`;
+  }
+  return `<section class="card" id="pushCard"><h2>Notiser</h2>${status}
+    <p class="hint">Notiser kan synas på låsskärmen. De säger vem som är sugen och när, aldrig något om dina listor.</p></section>`;
 }
 
 async function refresh(quiet) {
@@ -579,6 +706,7 @@ function renderHome() {
   return `${inviteBanner()}
     <header><h1>Ska vi ta en öl?</h1><p class="lead">Hej ${esc(S.me?.name || "")}! Säg att du är sugen utan att fråga någon rakt ut.</p></header>
     ${matchCards()}
+    ${pushPromptHtml()}
     ${howtoHtml(S.howtoOpen ?? firstTime)}
     <div class="hero">${glassHtml(on)}
       <div class="hero-text">${on ? "Du är sugen på en öl" : "Sugen på en öl?"}</div>
@@ -768,6 +896,7 @@ function renderAccount() {
       <p>${ios
         ? "Tryck på Dela-knappen i Safari och välj <b>Lägg till på hemskärmen</b>. Då öppnas appen som en vanlig app."
         : "Öppna webbläsarens meny och välj <b>Installera app</b> eller <b>Lägg till på startskärmen</b>."}</p></section>`}
+    ${pushCardHtml()}
     ${statsHtml()}
     ${feedbackAdminHtml()}
     ${feedbackHtml()}
@@ -837,6 +966,38 @@ document.addEventListener("click", async e => {
     document.getElementById("fbText")?.focus({ preventScroll: true });
     return;
   }
+  if (t.id === "pushOn") {
+    S.push.busy = true;
+    await act(async () => { await enablePush(); }, "Notiserna är på");
+    S.push.busy = false;
+    render();
+    return;
+  }
+  if (t.id === "pushLater") {
+    try { localStorage.setItem(PUSH_DISMISS_KEY, "1"); } catch (_) { /* tomt */ }
+    render();
+    toast("Du kan slå på notiser under Konto när du vill");
+    return;
+  }
+  if (t.id === "pushOff") {
+    await act(async () => { await disablePush(); }, "Notiserna är avstängda på den här telefonen");
+    return;
+  }
+  if (t.id === "pushTest") {
+    if (S.busy) return;
+    S.busy = true; render();
+    try {
+      const { data, error } = await sb.functions.invoke("notify", { body: { event: "test" } });
+      if (error) throw error;
+      if (data?.sent) toast("Testnotisen är skickad. Den kan dröja några sekunder.");
+      else toast(data?.failures?.[0] ? "Det gick inte: " + data.failures[0] : "Hittade ingen telefon att skicka till. Stäng av och slå på igen.");
+    } catch (e) {
+      toast(errorText(e));
+    } finally {
+      S.busy = false; render();
+    }
+    return;
+  }
   if (t.id === "explainLists") {
     S.tab = "vanner"; S.listsHelpOpen = true; S.confirm = ""; render();
     window.scrollTo(0, 0);
@@ -875,6 +1036,7 @@ document.addEventListener("click", async e => {
         signal_time: time, signal_ish: !!(time && S.draft.ish)
       });
       S.setupOpen = false; S.editing = false;
+      notifyServer({ event: "signal" });
       await loadAll();
     }, wasOn ? "Sparat" : "Signalen är tänd");
     return;
@@ -888,7 +1050,12 @@ document.addEventListener("click", async e => {
     const rect = t.getBoundingClientRect();
     const friend = S.feed.find(f => f.signal_id === t.dataset.answer);
     let ok = false;
-    await act(async () => { await rpc("answer_signal", { target: t.dataset.answer }); ok = true; await loadAll(); });
+    await act(async () => {
+      await rpc("answer_signal", { target: t.dataset.answer });
+      ok = true;
+      notifyServer({ event: "answer", signal_id: t.dataset.answer });
+      await loadAll();
+    });
     if (ok) {
       burstAt(rect);
       toast(`Skål! ${friend ? friend.owner_name + " får veta att du är på." : "Svaret går bara till den som tänt signalen."}`);
@@ -976,6 +1143,16 @@ document.addEventListener("input", e => {
 });
 
 document.addEventListener("change", async e => {
+  const nb = e.target.closest("input[data-notify]");
+  if (nb) {
+    const key = nb.dataset.notify, val = nb.checked;
+    await act(async () => {
+      const { error } = await sb.from("profiles").update({ [key]: val }).eq("id", S.session.user.id);
+      if (error) throw error;
+      if (S.me) S.me[key] = val;
+    }, val ? "Påslaget" : "Avslaget");
+    return;
+  }
   const sel = e.target.closest("select[data-move]");
   if (!sel) return;
   const id = sel.dataset.move;
@@ -1133,6 +1310,9 @@ async function enterApp() {
     if (S.inviteCode && S.code && S.inviteCode === S.code) { S.inviteDismissed = true; storeSet(INVITE_KEY, ""); }
     S.screen = "app";
     touchSeen();
+    Object.assign(S.push, pushEnv());
+    S.push.permission = "Notification" in window ? Notification.permission : "default";
+    checkPush().then(() => { if (S.screen === "app") render(); }, () => {});
   } catch (e) {
     S.screen = "app";
     toast(errorText(e));
