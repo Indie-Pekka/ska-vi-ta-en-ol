@@ -42,3 +42,31 @@ jobs:
 
       - name: Kör nya databasändringar
         run: supabase db push --yes --remote
+
+      # Nyckelpar för notiser. Skapas bara första gången och
+      # sparas direkt som hemligheter i Supabase; den hemliga
+      # delen skrivs aldrig ut.
+      - name: Notisnycklar
+        run: |
+          if supabase secrets list --project-ref "$SUPABASE_PROJECT_ID" | grep -q VAPID_PUBLIC_KEY; then
+            echo "Notisnycklarna finns redan."
+          else
+            keys=$(npx -y web-push@3.6.7 generate-vapid-keys --json)
+            pub=$(echo "$keys" | jq -r .publicKey)
+            priv=$(echo "$keys" | jq -r .privateKey)
+            echo "::add-mask::$priv"
+            supabase secrets set --project-ref "$SUPABASE_PROJECT_ID" \
+              VAPID_PUBLIC_KEY="$pub" VAPID_PRIVATE_KEY="$priv" \
+              VAPID_SUBJECT="https://indie-pekka.github.io/ska-vi-ta-en-ol/" > /dev/null
+            echo "Notisnycklar skapade."
+          fi
+
+      - name: Publicera notisfunktionen
+        run: supabase functions deploy notify --project-ref "$SUPABASE_PROJECT_ID" --no-verify-jwt
+
+      - name: Kolla notisfunktionen
+        run: |
+          sleep 5
+          out=$(curl -sS "https://$SUPABASE_PROJECT_ID.supabase.co/functions/v1/notify")
+          echo "$out" | sed -E 's/"publicKey":"[^"]{12}[^"]*"/"publicKey":"(finns)"/'
+          echo "$out" | grep -q '"ready":true' || { echo "::error::Notisfunktionen är inte redo."; exit 1; }
