@@ -4,6 +4,7 @@
 // GET  → { publicKey } (behövs för att slå på notiser)
 // POST { event: "signal" }                 – jag har tänt/ändrat min signal
 // POST { event: "answer", signal_id }      – jag har svarat "Jag är på!"
+// POST { event: "friend" }                 – jag har nyss blivit vän med någon
 // POST { event: "test" }                   – testnotis till mig själv
 //
 // Vem som får vad räknas ut i databasen (notify_plan).
@@ -63,7 +64,7 @@ Deno.serve(async (req) => {
   let plan: Plan[] = [];
   if (event === "test") {
     plan = [{ recipient: user.id, kind: "test", title: "Notiserna fungerar 🍻", body: "Så här ser det ut när någon är sugen.", tag: "test" }];
-  } else if (event === "signal" || event === "answer") {
+  } else if (event === "signal" || event === "answer" || event === "friend") {
     const { data, error } = await admin.rpc("notify_plan", {
       sender: user.id,
       event,

@@ -157,7 +157,7 @@ async function rpc(name, args) {
 async function loadAll() {
   const uid = S.session.user.id;
   const [me, lists, friends, invite, signal, feed, responses] = await Promise.all([
-    sb.from("profiles").select("id, name, notify_answer, notify_signal, notify_match").eq("id", uid).maybeSingle(),
+    sb.from("profiles").select("id, name, notify_answer, notify_signal, notify_match, notify_friend").eq("id", uid).maybeSingle(),
     sb.from("lists").select("id, name, always, sort_order, created_at").order("always", { ascending: false }).order("sort_order").order("created_at"),
     sb.from("friends").select("friend, list_id, hidden, created_at"),
     sb.from("invites").select("code").maybeSingle(),
@@ -421,6 +421,7 @@ function pushCardHtml() {
         ${opt("notify_answer", "När någon är på min signal")}
         ${opt("notify_signal", "När en vän tänder sin signal")}
         ${opt("notify_match", "När vi är sugna samma dag")}
+        ${opt("notify_friend", "När någon blir min vän")}
       </div>
       <div class="btn-row">
         <button type="button" class="btn btn-quiet" id="pushTest">Skicka en testnotis</button>
@@ -1082,6 +1083,7 @@ document.addEventListener("click", async e => {
     await act(async () => {
       const rows = await rpc("accept_invite", { invite_code: S.inviteCode });
       const r = rows && rows[0];
+      if (r && !r.already_friends) notifyServer({ event: "friend" });
       S.inviteDismissed = true;
       storeSet(INVITE_KEY, "");
       await loadAll();
@@ -1206,7 +1208,8 @@ document.addEventListener("submit", async e => {
     });
     S.busy = false;
     if (error) { S.authError = errorText(error); render(); keepValues(form, { name, email }); return; }
-    // Vänskapen skapades med kontot
+    // Vänskapen skapades med kontot. Säg till den som bjöd in.
+    if (data.session && S.inviteCode) notifyServer({ event: "friend" });
     storeSet(INVITE_KEY, "");
     S.inviteDismissed = true;
     if (!data.session) {
