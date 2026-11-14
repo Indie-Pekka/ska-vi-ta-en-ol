@@ -105,7 +105,7 @@ p { margin: 0; }
 .chip { background: var(--chip); border: 1px solid transparent; border-radius: 999px; padding: 7px 13px; font-size: 15px; }
 .chip[aria-pressed="true"] { background: var(--amber); color: var(--on-amber); font-weight: 600; }
 .chip.locked { background: transparent; border-color: var(--line); color: var(--muted); cursor: default; }
-input[type="text"], input[type="email"], input[type="password"], select {
+input[type="text"], input[type="email"], input[type="password"], input[type="time"], textarea, select {
   width: 100%; background: var(--bg); border: 1px solid var(--line); border-radius: 10px; padding: 11px 12px; font-size: 16px;
 }
 select { width: auto; max-width: 48%; padding: 6px 8px; font-size: 14px; border-radius: 8px; }
@@ -117,6 +117,11 @@ select { width: auto; max-width: 48%; padding: 6px 8px; font-size: 14px; border-
 .btn-row { display: flex; gap: 8px; flex-wrap: wrap; }
 .btn-row .btn { flex: 1 1 auto; }
 .linkbtn { background: none; border: 0; padding: 0; color: var(--amber-ink); font-weight: 600; text-decoration: underline; text-underline-offset: 3px; }
+
+.time-row { display: flex; align-items: center; gap: 14px; flex-wrap: wrap; }
+.time-row input[type="time"] { width: auto; min-width: 120px; }
+.check { display: inline-flex; align-items: center; gap: 8px; font-weight: 600; cursor: pointer; }
+.check input { width: 22px; height: 22px; accent-color: var(--amber); margin: 0; }
 
 .status dl { margin: 0; display: grid; grid-template-columns: auto 1fr; gap: 6px 14px; font-size: 15px; }
 .status dt { color: var(--muted); }

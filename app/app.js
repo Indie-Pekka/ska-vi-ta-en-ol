@@ -39,7 +39,7 @@ const S = {
   responses: [],
   setupOpen: false,
   editing: false,
-  draft: { day: "", place: "", lists: [] },
+  draft: { day: "", place: "", lists: [], time: "", ish: false, timeOpen: false },
   confirm: "",                // nyckel för en bekräftelse på plats
   renameList: "",
   newListOpen: false,
@@ -76,6 +76,18 @@ function dayText(iso) {
   return weekday(iso);
 }
 function dayLabel(iso) { return cap(dayText(iso)); }
+// "19:00" → "kl. 19", "19:30" + ish → "19.30 ish"
+function timeText(t, ish) {
+  if (!t) return "";
+  const [h, m] = String(t).split(":");
+  const base = String(parseInt(h, 10)) + (m && m !== "00" ? "." + m : "");
+  return ish ? base + " ish" : "kl. " + base;
+}
+function whenText(day, t, ish) { return dayLabel(day) + (t ? " " + timeText(t, ish) : ""); }
+function draftFromSignal(sig) {
+  const time = sig.start_time ? String(sig.start_time).slice(0, 5) : "";
+  return { day: sig.day, place: sig.place || "", lists: [...(sig.lists || [])], time, ish: !!sig.time_ish, timeOpen: !!time };
+}
 function expiryText(iso) { return "natten mot " + weekday(addDays(iso, 1)) + " kl. 02"; }
 
 // ======================================================
@@ -142,7 +154,7 @@ async function loadAll() {
     sb.from("lists").select("id, name, always, sort_order, created_at").order("always", { ascending: false }).order("sort_order").order("created_at"),
     sb.from("friends").select("friend, list_id, hidden, created_at"),
     sb.from("invites").select("code").maybeSingle(),
-    sb.from("signals").select("id, day, place, lists, expires_at").maybeSingle(),
+    sb.from("signals").select("id, day, place, lists, start_time, time_ish, expires_at").maybeSingle(),
     sb.rpc("get_feed"),
     sb.rpc("get_my_responses")
   ]);
@@ -375,8 +387,17 @@ function setupHtml() {
   const unsorted = S.friends.filter(isUnsorted).length;
   return `<section class="card" aria-label="Tänd signalen">
     <div class="field"><span class="label">När</span><div class="chips">${days}</div></div>
+    ${d.timeOpen
+      ? `<div class="field"><label class="label" for="time">Tid</label>
+          <div class="time-row">
+            <input type="time" id="time" value="${esc(d.time)}" step="900">
+            <label class="check" for="ish"><input type="checkbox" id="ish" ${d.ish ? "checked" : ""}> ish</label>
+            <button type="button" class="linkbtn" id="removeTime">Ingen tid</button>
+          </div>
+          <p class="hint" id="timePreview">${d.time ? "Visas som: " + esc(whenText(d.day, d.time, d.ish)) : "Välj en tid."}</p></div>`
+      : `<div><button type="button" class="linkbtn" id="addTime">Lägga till en tid?</button></div>`}
     <div class="field"><label class="label" for="place">Var (valfritt)</label>
-      <input type="text" id="place" placeholder="T.ex. Södermalm, efter 19" value="${esc(d.place)}" maxlength="60"></div>
+      <input type="text" id="place" placeholder="T.ex. Södermalm" value="${esc(d.place)}" maxlength="60"></div>
     <div class="field"><span class="label">Vilka får se den här gången</span><div class="chips">${lists}</div>
       ${n === 0 ? noAudienceWarning(d.lists) : `<p class="hint" id="audience">${friendsWord(n)} ser signalen. Ingen av dem får veta vilken lista de ligger på.</p>
       ${unsorted ? `<p class="hint">${friendsWord(unsorted)} ${unsorted === 1 ? "är inte sorterad" : "är inte sorterade"} och ser ingenting. <button type="button" class="linkbtn" data-tab="vanner">Sortera</button></p>` : ""}`}
@@ -399,7 +420,7 @@ function statusHtml() {
   return `<section class="card status" aria-label="Din signal">
     ${noAudienceWarning(s.lists || [])}
     <dl>
-      <dt>När</dt><dd>${dayLabel(s.day)}</dd>
+      <dt>När</dt><dd>${esc(whenText(s.day, s.start_time, s.time_ish))}</dd>
       ${s.place ? `<dt>Var</dt><dd>${esc(s.place)}</dd>` : ""}
       <dt>Syns för</dt><dd>${names} (${friendsWord(audience(s.lists || []))})</dd>
       <dt>Slocknar</dt><dd>${expiryText(s.day)}</dd>
@@ -414,7 +435,7 @@ function statusHtml() {
 
 function feedRow(f) {
   return `<div class="row"><span class="avatar lit">${initial(f.owner_name)}</span>
-    <div class="who"><b>${esc(f.owner_name)}</b><span>${dayLabel(f.day)}${f.place ? " · " + esc(f.place) : ""}</span>
+    <div class="who"><b>${esc(f.owner_name)}</b><span>${esc(whenText(f.day, f.start_time, f.time_ish))}${f.place ? " · " + esc(f.place) : ""}</span>
       ${f.both_keen ? `<span class="match">Ni är båda sugna ${dayText(f.day)}</span>` : ""}</div>
     ${f.answered
       ? `<button type="button" class="small-btn done" data-unanswer="${f.signal_id}" aria-label="Ångra svaret till ${esc(f.owner_name)}">Svarat ✓</button>`
@@ -446,7 +467,7 @@ function renderHome() {
     ${howtoHtml(S.howtoOpen ?? firstTime)}
     <div class="hero">${glassHtml(on)}
       <div class="hero-text">${on ? "Du är sugen på en öl" : "Sugen på en öl?"}</div>
-      <div class="hero-sub">${on ? dayLabel(S.signal.day) + (S.signal.place ? " · " + esc(S.signal.place) : "") : "Tryck på glaset"}</div>
+      <div class="hero-sub">${on ? esc(whenText(S.signal.day, S.signal.start_time, S.signal.time_ish)) + (S.signal.place ? " · " + esc(S.signal.place) : "") : "Tryck på glaset"}</div>
     </div>
     ${firstTime ? `<div class="notice"><b>Du har inga vänner i appen än.</b><span>Bjud in någon under Vänner, då kan ni se varandras signaler.</span></div>` : ""}
     ${showSetup ? setupHtml() : on ? statusHtml() : ""}
@@ -559,7 +580,7 @@ function renderAccount() {
 // ======================================================
 
 function openSetup() {
-  S.draft = { day: appToday(), place: "", lists: [] };
+  S.draft = { day: appToday(), place: "", lists: [], time: "", ish: false, timeOpen: false };
   S.setupOpen = true;
   S.editing = false;
   render();
@@ -596,7 +617,7 @@ document.addEventListener("click", async e => {
 
   // Hem
   if (t.id === "glass") {
-    if (S.signal) { S.draft = { day: S.signal.day, place: S.signal.place || "", lists: [...(S.signal.lists || [])] }; S.editing = true; render(); }
+    if (S.signal) { S.draft = draftFromSignal(S.signal); S.editing = true; render(); }
     else if (S.setupOpen) { S.setupOpen = false; render(); }
     else openSetup();
     return;
@@ -608,17 +629,29 @@ document.addEventListener("click", async e => {
     render();
     return;
   }
+  if (t.id === "addTime") {
+    S.draft.timeOpen = true;
+    if (!S.draft.time) S.draft.time = "19:00";
+    render();
+    document.getElementById("time")?.focus({ preventScroll: true });
+    return;
+  }
+  if (t.id === "removeTime") { S.draft.timeOpen = false; S.draft.time = ""; S.draft.ish = false; render(); return; }
   if (t.id === "cancelSetup") { S.setupOpen = false; S.editing = false; render(); return; }
   if (t.id === "light") {
     const wasOn = !!S.signal;
     await act(async () => {
-      await rpc("set_signal", { signal_day: S.draft.day, signal_place: S.draft.place.trim(), signal_lists: S.draft.lists });
+      const time = S.draft.timeOpen && S.draft.time ? S.draft.time : null;
+      await rpc("set_signal", {
+        signal_day: S.draft.day, signal_place: S.draft.place.trim(), signal_lists: S.draft.lists,
+        signal_time: time, signal_ish: !!(time && S.draft.ish)
+      });
       S.setupOpen = false; S.editing = false;
       await loadAll();
     }, wasOn ? "Sparat" : "Signalen är tänd");
     return;
   }
-  if (t.id === "edit") { S.draft = { day: S.signal.day, place: S.signal.place || "", lists: [...(S.signal.lists || [])] }; S.editing = true; render(); return; }
+  if (t.id === "edit") { S.draft = draftFromSignal(S.signal); S.editing = true; render(); return; }
   if (t.id === "off") {
     await act(async () => { await rpc("clear_signal"); await loadAll(); }, "Signalen är släckt");
     return;
@@ -697,6 +730,12 @@ document.addEventListener("toggle", e => {
 
 document.addEventListener("input", e => {
   if (e.target.id === "place") S.draft.place = e.target.value;
+  if (e.target.id === "time" || e.target.id === "ish") {
+    if (e.target.id === "time") S.draft.time = e.target.value;
+    else S.draft.ish = e.target.checked;
+    const pv = document.getElementById("timePreview");
+    if (pv) pv.textContent = S.draft.time ? "Visas som: " + whenText(S.draft.day, S.draft.time, S.draft.ish) : "Välj en tid.";
+  }
 });
 
 document.addEventListener("change", async e => {
