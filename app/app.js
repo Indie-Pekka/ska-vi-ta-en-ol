@@ -379,8 +379,18 @@ function notifyServer(body) {
 
 function pushPromptHtml() {
   const p = S.push;
-  if (!p.supported || p.subscribed || p.permission === "denied") return "";
   try { if (localStorage.getItem(PUSH_DISMISS_KEY)) return ""; } catch (_) { /* visa */ }
+  if (p.ios && !p.standalone) {
+    return `<div class="banner">
+        <b>Vill du få en notis när någon är sugen?</b>
+        <span class="hint">På Iphone fungerar notiser bara när appen ligger på hemskärmen. Tryck på Dela-knappen i Safari, välj <b>Lägg till på hemskärmen</b> och öppna appen därifrån.</span>
+        <div class="btn-row">
+          <button type="button" class="btn btn-quiet" id="pushLater">Inte nu</button>
+          <button type="button" class="btn btn-main" data-tab="konto">Visa hur</button>
+        </div>
+      </div>`;
+  }
+  if (!p.supported || p.subscribed || p.permission === "denied") return "";
   return `<div class="banner">
       <b>Vill du få en notis när någon är sugen?</b>
       <span class="hint">Till exempel när en vän tänder sin signal eller svarar att hen är på.</span>
@@ -418,6 +428,7 @@ function pushCardHtml() {
       </div>`;
   }
   return `<section class="card" id="pushCard"><h2>Notiser</h2>${status}
+    <p class="hint"><b>Iphone:</b> notiser fungerar bara när appen ligger på hemskärmen och öppnas därifrån, inte i Safari. På Android fungerar de även i webbläsaren.</p>
     <p class="hint">Notiser kan synas på låsskärmen. De säger vem som är sugen och när, aldrig något om dina listor.</p></section>`;
 }
 
