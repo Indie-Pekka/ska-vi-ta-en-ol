@@ -86,12 +86,24 @@ function esc(s) {
 }
 function initial(name) { return esc((String(name || "?").trim()[0] || "?").toUpperCase()); }
 
-function toast(msg) {
+function toast(msg, action) {
   const t = document.getElementById("toast");
   t.textContent = msg;
+  if (action) {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.textContent = action.label;
+    b.addEventListener("click", ev => {
+      ev.stopPropagation();
+      t.hidden = true;
+      clearTimeout(toast.timer);
+      action.run();
+    });
+    t.append(" ", b);
+  }
   t.hidden = false;
   clearTimeout(toast.timer);
-  toast.timer = setTimeout(() => { t.hidden = true; }, 3200);
+  toast.timer = setTimeout(() => { t.hidden = true; }, action ? 10000 : 3200);
 }
 
 function storeGet(key) { try { return localStorage.getItem(key) || ""; } catch (_) { return ""; } }
@@ -127,7 +139,7 @@ async function loadAll() {
   const [me, lists, friends, invite, signal, feed, responses] = await Promise.all([
     sb.from("profiles").select("id, name").eq("id", uid).maybeSingle(),
     sb.from("lists").select("id, name, always, sort_order, created_at").order("always", { ascending: false }).order("sort_order").order("created_at"),
-    sb.from("friends").select("friend, list_id, created_at"),
+    sb.from("friends").select("friend, list_id, hidden, created_at"),
     sb.from("invites").select("code").maybeSingle(),
     sb.from("signals").select("id, day, place, lists, expires_at").maybeSingle(),
     sb.rpc("get_feed"),
@@ -152,7 +164,7 @@ async function loadAll() {
     names = new Map((p.data || []).map(x => [x.id, x.name]));
   }
   S.friends = rows
-    .map(r => ({ id: r.friend, name: names.get(r.friend) || "Okänd", list_id: r.list_id }))
+    .map(r => ({ id: r.friend, name: names.get(r.friend) || "Okänd", list_id: r.list_id, hidden: !!r.hidden }))
     .sort((a, b) => a.name.localeCompare(b.name, "sv"));
 }
 
@@ -298,6 +310,7 @@ function audience(listIds) {
   const always = alwaysIds();
   return S.friends.filter(f => f.list_id && (always.has(f.list_id) || listIds.includes(f.list_id))).length;
 }
+function isUnsorted(f) { return !f.list_id && !f.hidden; }
 function friendsWord(n) { return n === 1 ? "1 vän" : n + " vänner"; }
 
 // Varning när ingen kommer att se signalen
@@ -311,7 +324,7 @@ function noAudienceWarning(listIds) {
     </div>`;
   }
   const always = alwaysIds();
-  const unsorted = S.friends.filter(f => !f.list_id).length;
+  const unsorted = S.friends.filter(isUnsorted).length;
   const unticked = S.friends.filter(f => f.list_id && !always.has(f.list_id) && !listIds.includes(f.list_id)).length;
   const parts = [];
   if (unsorted) parts.push(`${friendsWord(unsorted)} ${unsorted === 1 ? "är inte sorterad" : "är inte sorterade"} i någon lista än.`);
@@ -333,7 +346,7 @@ function setupHtml() {
     ? `<span class="chip locked">${esc(l.name)} · ser alltid</span>`
     : `<button type="button" class="chip" data-list="${l.id}" aria-pressed="${d.lists.includes(l.id)}">${esc(l.name)}</button>`).join("");
   const n = audience(d.lists);
-  const unsorted = S.friends.filter(f => !f.list_id).length;
+  const unsorted = S.friends.filter(isUnsorted).length;
   return `<section class="card" aria-label="Tänd signalen">
     <div class="field"><span class="label">När</span><div class="chips">${days}</div></div>
     <div class="field"><label class="label" for="place">Var (valfritt)</label>
@@ -422,7 +435,7 @@ function friendRow(f) {
   const confirmKey = "friend:" + f.id;
   if (S.confirm === confirmKey) {
     return `<div class="row"><span class="avatar">${initial(f.name)}</span>
-      <div class="who"><b>Ta bort ${esc(f.name)} som vän?</b><span>Ni slutar se varandras signaler. ${esc(f.name)} får inte veta det.</span></div></div>
+      <div class="who"><b>Ta bort ${esc(f.name)} som vän?</b><span>Ni slutar se varandras signaler. ${esc(f.name)} får inte veta det. Vill du bara att ${esc(f.name)} inte ska se dina signaler? Välj <strong>Ser aldrig</strong> i listan i stället.</span></div></div>
       <div class="confirm"><button type="button" class="small-btn" data-cancel>Avbryt</button>
       <button type="button" class="small-btn" data-remove="${f.id}">Ta bort</button></div>`;
   }
@@ -430,7 +443,8 @@ function friendRow(f) {
     <div class="who"><b>${esc(f.name)}</b></div>
     <label for="mv-${f.id}" hidden>Lista för ${esc(f.name)}</label>
     <select id="mv-${f.id}" data-move="${f.id}">
-      <option value="" ${f.list_id ? "" : "selected"}>Inte sorterad</option>${opts}</select>
+      ${isUnsorted(f) ? `<option value="" selected>Välj lista…</option>` : ""}${opts}
+      <option value="__never" ${f.hidden ? "selected" : ""}>Ser aldrig</option></select>
     <button type="button" class="icon-btn" data-confirm="${confirmKey}" aria-label="Ta bort ${esc(f.name)}">✕</button>
   </div>`;
 }
@@ -460,7 +474,8 @@ function listSection(l) {
 
 function renderFriends() {
   const link = S.code ? BASE_URL + "?inbjudan=" + S.code : "";
-  const unsorted = S.friends.filter(f => !f.list_id);
+  const unsorted = S.friends.filter(isUnsorted);
+  const never = S.friends.filter(f => f.hidden);
   const canShare = typeof navigator.share === "function";
   return `<header><h1>Vänner</h1><p class="lead">Listorna syns bara för dig. En vän ser antingen din signal eller ingenting.</p></header>
     <section class="card">
@@ -479,6 +494,9 @@ function renderFriends() {
       <p class="hint">Välj en lista, annars ser de aldrig din signal.</p>
       <div class="list">${unsorted.map(friendRow).join("")}</div></section>` : ""}
     ${S.lists.map(listSection).join("")}
+    ${never.length ? `<section class="section"><div class="listhead"><h2>Ser aldrig</h2><span class="tag">Kvar som vän</span></div>
+      <p class="hint">De här vännerna ser aldrig din signal, och de får inte veta det. Du ser fortfarande deras signaler om de vill.</p>
+      <div class="list">${never.map(friendRow).join("")}</div></section>` : ""}
     ${S.newListOpen
       ? `<form class="card" data-form="newList"><label class="label" for="listName">Namn på listan</label>
           <input type="text" id="listName" placeholder="T.ex. Jobbet" maxlength="30">
@@ -621,7 +639,14 @@ document.addEventListener("click", async e => {
   }
   if (t.dataset.remove) {
     const f = S.friends.find(x => x.id === t.dataset.remove);
-    await act(async () => { await rpc("remove_friend", { friend_id: t.dataset.remove }); S.confirm = ""; await loadAll(); }, `${f?.name || "Vännen"} är borttagen`);
+    const friendId = t.dataset.remove;
+    await act(async () => { await rpc("remove_friend", { friend_id: friendId }); S.confirm = ""; await loadAll(); });
+    if (!S.friends.some(x => x.id === friendId)) {
+      toast(`${f?.name || "Vännen"} är borttagen`, {
+        label: "Ångra",
+        run: () => act(async () => { await rpc("restore_friend", { friend_id: friendId }); await loadAll(); }, `${f?.name || "Vännen"} är tillbaka`)
+      });
+    }
     return;
   }
   if (t.dataset.rename) { S.renameList = t.dataset.rename; render(); document.getElementById("rename-" + t.dataset.rename)?.focus(); return; }
@@ -649,13 +674,15 @@ document.addEventListener("change", async e => {
   const sel = e.target.closest("select[data-move]");
   if (!sel) return;
   const id = sel.dataset.move;
-  const listId = sel.value || null;
+  const never = sel.value === "__never";
+  const listId = never ? null : (sel.value || null);
+  if (!never && !listId) return;
   const f = S.friends.find(x => x.id === id);
   await act(async () => {
-    const { error } = await sb.from("friends").update({ list_id: listId }).eq("friend", id);
+    const { error } = await sb.from("friends").update({ list_id: listId, hidden: never }).eq("friend", id);
     if (error) throw error;
-    if (f) f.list_id = listId;
-  }, f ? `${f.name} ligger nu i ${listId ? S.lists.find(l => l.id === listId)?.name : "Inte sorterade"}` : "");
+    if (f) { f.list_id = listId; f.hidden = never; }
+  }, f ? (never ? `${f.name} ser aldrig din signal nu` : `${f.name} ligger nu i ${S.lists.find(l => l.id === listId)?.name || "listan"}`) : "");
 });
 
 document.addEventListener("submit", async e => {

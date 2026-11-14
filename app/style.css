@@ -136,6 +136,7 @@ select { width: auto; max-width: 48%; padding: 6px 8px; font-size: 14px; border-
   background: var(--ink); color: var(--bg); padding: 11px 16px; border-radius: 12px; font-size: 15px;
   max-width: calc(100% - 32px); text-align: center;
 }
+.toast button { background: none; border: 0; color: inherit; font-weight: 700; padding: 4px 6px; margin-left: 6px; text-decoration: underline; text-underline-offset: 3px; }
 .loading { min-height: 60vh; display: grid; place-items: center; color: var(--muted); }
 
 @media (prefers-reduced-motion: reduce) { .glass .beer, .glass .q { transition: none; } }
