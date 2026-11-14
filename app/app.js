@@ -44,7 +44,8 @@ const S = {
   renameList: "",
   newListOpen: false,
   renameMe: false,
-  busy: false
+  busy: false,
+  howtoOpen: null             // Så funkar det på Hem (null = standard)
 };
 
 // ======================================================
@@ -232,15 +233,26 @@ function pitchHtml() {
       <p class="lead">Säg att du är sugen på sällskap, utan att fråga någon rakt ut.</p>
     </header>
     <div class="hero" aria-hidden="true"><div class="glass on small"><span class="shape"></span><span class="inner"><span class="beer"></span></span></div></div>
-    <section class="pitch" aria-label="Så funkar det">
-      <p>Ibland är man sugen på en öl med någon, men vet inte vem som är ledig. Att skriva det öppet på sociala medier känns som att ropa ut att man saknar vänner, och fel person kan svara. Att fråga en i taget tar tid, och ofta blir det ingenting.</p>
+    <section class="pitch" aria-label="Så funkar det">${pitchBody()}</section>`;
+}
+
+// Idén i korthet (startsidan, Hem och Konto)
+function pitchBody() {
+  return `<p>Ibland är man sugen på en öl med någon, men vet inte vem som är ledig. Att skriva det öppet på sociala medier känns som att ropa ut att man saknar vänner, och fel person kan svara. Att fråga en i taget tar tid, och ofta blir det ingenting.</p>
       <ol class="steps">
         <li><span><b>Tryck på glaset.</b> I kväll eller någon annan dag i veckan, gärna med var.</span></li>
         <li><span><b>Välj vilka som ser det.</b> Dina närmaste ser alltid. Andra listor bockar du i när du vill.</span></li>
         <li><span><b>Ingen blir bortvald.</b> Den som inte får se din signal ser ingenting, inte heller vilken lista hen ligger på.</span></li>
         <li><span><b>Den som är sugen svarar ”Jag är på!”</b> Svaret går bara till dig. Sedan ses ni.</span></li>
       </ol>
-    </section>`;
+      <p class="hint">Signalen slocknar av sig själv klockan 02 natten efter den dag du valt.</p>`;
+}
+
+function howtoHtml(open) {
+  return `<details class="howto" id="howto" ${open ? "open" : ""}>
+      <summary>Så funkar det</summary>
+      <div class="pitch">${pitchBody()}</div>
+    </details>`;
 }
 
 function renderAuth() {
@@ -431,6 +443,7 @@ function renderHome() {
   const firstTime = !S.friends.length;
   return `${inviteBanner()}
     <header><h1>Ska vi ta en öl?</h1><p class="lead">Hej ${esc(S.me?.name || "")}! Säg att du är sugen utan att fråga någon rakt ut.</p></header>
+    ${howtoHtml(S.howtoOpen ?? firstTime)}
     <div class="hero">${glassHtml(on)}
       <div class="hero-text">${on ? "Du är sugen på en öl" : "Sugen på en öl?"}</div>
       <div class="hero-sub">${on ? dayLabel(S.signal.day) + (S.signal.place ? " · " + esc(S.signal.place) : "") : "Tryck på glaset"}</div>
@@ -537,10 +550,7 @@ function renderAccount() {
         ? "Tryck på Dela-knappen i Safari och välj <b>Lägg till på hemskärmen</b>. Då öppnas appen som en vanlig app."
         : "Öppna webbläsarens meny och välj <b>Installera app</b> eller <b>Lägg till på startskärmen</b>."}</p></section>`}
     ${PROTOTYPE_NOTE}
-    <section class="card"><h2>Så funkar det</h2>
-      <p>Du lägger dina vänner i listor. <b>Närmaste</b> ser alltid när du är sugen. Övriga listor väljer du varje gång du tänder signalen. Den som inte får se signalen ser ingenting, inte heller att den finns.</p>
-      <p>Svar går bara till den som tänt signalen. Signalen slocknar av sig själv klockan 02 natten efter den dag du valt.</p>
-    </section>
+    <section class="card"><h2>Så funkar det</h2><div class="pitch">${pitchBody()}</div></section>
     <div class="btn-row"><button type="button" class="btn btn-danger" id="logout">Logga ut</button></div>`;
 }
 
@@ -679,6 +689,11 @@ document.addEventListener("click", async e => {
   if (t.id === "renameMe") { S.renameMe = true; render(); document.getElementById("myName")?.focus(); return; }
   if (t.id === "logout") { await sb.auth.signOut(); return; }
 });
+
+// "toggle" bubblar inte, därför capture
+document.addEventListener("toggle", e => {
+  if (e.target.id === "howto") S.howtoOpen = e.target.open;
+}, true);
 
 document.addEventListener("input", e => {
   if (e.target.id === "place") S.draft.place = e.target.value;
