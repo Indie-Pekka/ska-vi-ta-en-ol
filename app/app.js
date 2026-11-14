@@ -224,21 +224,35 @@ const PROTOTYPE_NOTE = `<div class="notice">
   <span>Appen byggs och testas av Hugo Lindmark. Som ägare av databasen kan Hugo tekniskt se vilka som är vänner och vilka listor folk lägger varandra i. Det är inte syftet och han tittar inte i onödan, men du ska veta att det går. Ingen annan kan se dina listor.</span>
 </div>`;
 
+function pitchHtml() {
+  const invited = S.inviteStatus === "ok"
+    ? `<span class="eyebrow">${esc(S.inviteName)} bjuder in dig</span>` : "";
+  return `<header class="pitch-head">${invited}
+      <h1>Ska vi ta en öl?</h1>
+      <p class="lead">Säg att du är sugen på sällskap – utan att fråga någon rakt ut.</p>
+    </header>
+    <div class="hero" aria-hidden="true"><div class="glass on small"><span class="shape"></span><span class="inner"><span class="beer"></span></span></div></div>
+    <section class="pitch" aria-label="Så funkar det">
+      <p>Ibland är man sugen på en öl med någon, men vet inte vem som är ledig. Att skriva det öppet på sociala medier känns som att ropa ut att man saknar vänner – och fel person kan svara. Att fråga en i taget tar tid, och ofta blir det ingenting.</p>
+      <ol class="steps">
+        <li><span><b>Tryck på glaset.</b> I kväll eller någon annan dag i veckan, gärna med var.</span></li>
+        <li><span><b>Välj vilka som ser det.</b> Dina närmaste ser alltid. Andra listor bockar du i när du vill.</span></li>
+        <li><span><b>Ingen blir bortvald.</b> Den som inte får se din signal ser ingenting – inte heller vilken lista hen ligger på.</span></li>
+        <li><span><b>Den som är sugen svarar ”Jag är på!”</b> Svaret går bara till dig. Sedan ses ni.</span></li>
+      </ol>
+    </section>`;
+}
+
 function renderAuth() {
-  const head = `<header><h1>Ska vi ta en öl?</h1>
-    <p class="lead">Säg att du är sugen på sällskap utan att fråga någon rakt ut.</p></header>`;
+  const head = S.authMode === "forgot"
+    ? `<header><h1>Ska vi ta en öl?</h1></header>`
+    : pitchHtml();
   const msg = S.authMessage ? `<div class="notice">${esc(S.authMessage)}</div>` : "";
   const err = S.authError ? `<p class="error" role="alert">${esc(S.authError)}</p>` : "";
 
-  let inviteBox = "";
-  if (S.inviteStatus === "ok") {
-    inviteBox = `<section class="card">
-      <h2>${esc(S.inviteName)} bjuder in dig</h2>
-      <p>Tryck på glaset när du är sugen på en öl. Dina vänner ser det – men bara de du väljer. De du inte valt ser ingenting, inte ens att de valts bort.</p>
-    </section>`;
-  } else if (S.inviteStatus === "invalid") {
-    inviteBox = `<div class="notice"><b>Inbjudan gäller inte längre.</b><span>Be vännen som skickade länken om en ny.</span></div>`;
-  }
+  const inviteBox = S.inviteStatus === "invalid"
+    ? `<div class="notice"><b>Inbjudan gäller inte längre.</b><span>Be vännen som skickade länken om en ny.</span></div>`
+    : "";
 
   const canRegister = S.inviteStatus === "ok" || S.first;
 

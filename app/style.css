@@ -68,6 +68,22 @@ p { margin: 0; }
 .glass.on .beer::before { opacity: 1; }
 .glass .q { position: absolute; inset: 0; display: grid; place-items: center; font-family: var(--display); font-weight: 800; font-size: 44px; color: var(--muted); transition: opacity .3s; }
 .glass.on .q { opacity: 0; }
+.glass.small { width: 96px; height: 122px; display: block; }
+.glass.small .beer::before { top: -12px; height: 14px; }
+
+/* Pitch på inloggningssidan */
+.pitch-head { display: flex; flex-direction: column; gap: 4px; }
+.eyebrow { font-size: 13px; font-weight: 700; letter-spacing: .06em; text-transform: uppercase; color: var(--amber-ink); }
+.pitch { display: flex; flex-direction: column; gap: 16px; font-size: 16px; max-width: 65ch; }
+.steps { list-style: none; counter-reset: step; margin: 0; padding: 0; display: flex; flex-direction: column; gap: 12px; }
+.steps li { counter-increment: step; display: grid; grid-template-columns: 30px 1fr; gap: 12px; align-items: start; }
+.steps li::before {
+  content: counter(step); width: 30px; height: 30px; border-radius: 50%;
+  display: grid; place-items: center; background: var(--amber); color: var(--on-amber);
+  font-family: var(--display); font-weight: 800; font-size: 15px;
+}
+.steps b { display: block; }
+
 .hero-text { font-family: var(--display); font-weight: 700; font-size: 22px; text-align: center; }
 .hero-sub { color: var(--muted); font-size: 15px; text-align: center; margin-top: -6px; }
 
