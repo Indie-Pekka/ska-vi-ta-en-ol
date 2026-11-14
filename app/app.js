@@ -50,7 +50,8 @@ const S = {
   fbKind: "forslag",          // feedback: forslag | fel
   fbText: "",
   isAdmin: false,
-  feedbackList: []
+  feedbackList: [],
+  stats: null
 };
 
 // ======================================================
@@ -189,8 +190,9 @@ async function loadAll() {
   const admin = await sb.rpc("is_admin");
   S.isAdmin = !admin.error && admin.data === true;
   if (S.isAdmin) {
-    const fb = await sb.rpc("get_feedback");
+    const [fb, st] = await Promise.all([sb.rpc("get_feedback"), sb.rpc("get_stats")]);
     S.feedbackList = fb.error ? [] : (fb.data || []);
+    S.stats = st.error ? null : st.data;
   }
 }
 
@@ -607,6 +609,25 @@ function feedbackItem(f) {
       <div><button type="button" class="small-btn" data-fbstatus="${f.id}" data-to="${done ? "ny" : "klar"}">${done ? "Öppna igen" : "Markera klar"}</button></div>
     </div>`;
 }
+function statsHtml() {
+  if (!S.isAdmin || !S.stats) return "";
+  const s = S.stats;
+  const tile = (n, label, sub) => `<div class="stat"><b>${n ?? 0}</b><span>${label}</span>${sub ? `<small>${sub}</small>` : ""}</div>`;
+  const since = s.since ? new Intl.DateTimeFormat("sv-SE", { day: "numeric", month: "long" }).format(new Date(s.since)) : "";
+  return `<section class="card" id="statsAdmin">
+      <div class="listhead"><h2>Statistik</h2><span class="tag">Bara du ser den här</span></div>
+      <div class="stats">
+        ${tile(s.users_total, "användare", s.users_new_7d ? `${s.users_new_7d} nya senaste veckan` : "")}
+        ${tile(s.active_1d, "öppnat appen senaste dygnet", `${s.active_7d ?? 0} senaste veckan`)}
+        ${tile(s.signals_7d, "signaler tända senaste veckan", `av ${s.signal_users_7d ?? 0} personer · ${s.signals_now ?? 0} tända nu`)}
+        ${tile(s.answers_7d, "”Jag är på!” senaste veckan", "")}
+        ${tile(s.friendships, "vänskaper", `${s.with_friends ?? 0} personer har minst en vän`)}
+        ${tile((s.sorted_share ?? 0) + " %", "av vännerna är sorterade i en lista", "")}
+      </div>
+      <p class="hint">Bara siffror, inte vem. Signaler och svar räknas från ${esc(since || "i dag")}, öppnat appen från i dag.</p>
+    </section>`;
+}
+
 function feedbackAdminHtml() {
   if (!S.isAdmin) return "";
   const open = S.feedbackList.filter(f => f.status !== "klar");
@@ -647,6 +668,7 @@ function renderAccount() {
       <p>${ios
         ? "Tryck på Dela-knappen i Safari och välj <b>Lägg till på hemskärmen</b>. Då öppnas appen som en vanlig app."
         : "Öppna webbläsarens meny och välj <b>Installera app</b> eller <b>Lägg till på startskärmen</b>."}</p></section>`}
+    ${statsHtml()}
     ${feedbackAdminHtml()}
     ${feedbackHtml()}
     ${PROTOTYPE_NOTE}
@@ -986,6 +1008,15 @@ function keepValues(form, values) {
 // START
 // ======================================================
 
+function touchSeen() {
+  try {
+    const last = Number(localStorage.getItem("ol-seen") || 0);
+    if (Date.now() - last < 15 * 60000) return;
+    localStorage.setItem("ol-seen", String(Date.now()));
+  } catch (_) { /* räkna ändå */ }
+  sb.rpc("touch_seen").then(() => {}, () => {});
+}
+
 async function enterApp() {
   S.screen = "loading";
   render();
@@ -994,6 +1025,7 @@ async function enterApp() {
     if (S.inviteCode && !S.inviteDismissed) await checkInvite();
     if (S.inviteCode && S.code && S.inviteCode === S.code) { S.inviteDismissed = true; storeSet(INVITE_KEY, ""); }
     S.screen = "app";
+    touchSeen();
   } catch (e) {
     S.screen = "app";
     toast(errorText(e));
@@ -1037,7 +1069,9 @@ async function start() {
 
   // Håll listan över sugna vänner aktuell
   setInterval(() => { if (document.visibilityState === "visible") refresh(true); }, 60000);
-  document.addEventListener("visibilitychange", () => { if (document.visibilityState === "visible") refresh(true); });
+  document.addEventListener("visibilitychange", () => {
+    if (document.visibilityState === "visible") { refresh(true); if (S.screen === "app") touchSeen(); }
+  });
 }
 
 // ======================================================
