@@ -116,7 +116,7 @@ function errorText(error) {
   if (/already registered|already exists/i.test(msg)) return "Det finns redan ett konto med den e-posten. Logga in i stället.";
   if (/database error saving new user/i.test(msg)) return "Inbjudan gäller inte längre. Be om en ny länk.";
   if (/password should be at least/i.test(msg)) return "Lösenordet måste vara minst 6 tecken.";
-  if (/email not confirmed/i.test(msg)) return "Bekräfta din e-post först – kolla din inkorg.";
+  if (/email not confirmed/i.test(msg)) return "Bekräfta din e-post först, kolla din inkorg.";
   if (/rate limit|too many/i.test(msg)) return "För många försök just nu. Vänta en stund och försök igen.";
   if (/invalid email|unable to validate email/i.test(msg)) return "E-postadressen ser inte rätt ut.";
   if (/failed to fetch|network/i.test(msg)) return "Ingen kontakt med servern. Kolla uppkopplingen.";
@@ -229,15 +229,15 @@ function pitchHtml() {
     ? `<span class="eyebrow">${esc(S.inviteName)} bjuder in dig</span>` : "";
   return `<header class="pitch-head">${invited}
       <h1>Ska vi ta en öl?</h1>
-      <p class="lead">Säg att du är sugen på sällskap – utan att fråga någon rakt ut.</p>
+      <p class="lead">Säg att du är sugen på sällskap, utan att fråga någon rakt ut.</p>
     </header>
     <div class="hero" aria-hidden="true"><div class="glass on small"><span class="shape"></span><span class="inner"><span class="beer"></span></span></div></div>
     <section class="pitch" aria-label="Så funkar det">
-      <p>Ibland är man sugen på en öl med någon, men vet inte vem som är ledig. Att skriva det öppet på sociala medier känns som att ropa ut att man saknar vänner – och fel person kan svara. Att fråga en i taget tar tid, och ofta blir det ingenting.</p>
+      <p>Ibland är man sugen på en öl med någon, men vet inte vem som är ledig. Att skriva det öppet på sociala medier känns som att ropa ut att man saknar vänner, och fel person kan svara. Att fråga en i taget tar tid, och ofta blir det ingenting.</p>
       <ol class="steps">
         <li><span><b>Tryck på glaset.</b> I kväll eller någon annan dag i veckan, gärna med var.</span></li>
         <li><span><b>Välj vilka som ser det.</b> Dina närmaste ser alltid. Andra listor bockar du i när du vill.</span></li>
-        <li><span><b>Ingen blir bortvald.</b> Den som inte får se din signal ser ingenting – inte heller vilken lista hen ligger på.</span></li>
+        <li><span><b>Ingen blir bortvald.</b> Den som inte får se din signal ser ingenting, inte heller vilken lista hen ligger på.</span></li>
         <li><span><b>Den som är sugen svarar ”Jag är på!”</b> Svaret går bara till dig. Sedan ses ni.</span></li>
       </ol>
     </section>`;
@@ -333,7 +333,7 @@ function noAudienceWarning(listIds) {
   if (!S.friends.length) {
     return `<div class="notice" role="alert">
       <b>Ingen kan se din signal än</b>
-      <span>Du har inga vänner i appen. Bjud in någon – först när ni är vänner kan de se när du är sugen.</span>
+      <span>Du har inga vänner i appen. Bjud in någon, först när ni är vänner kan de se när du är sugen.</span>
       <div><button type="button" class="small-btn" data-tab="vanner">Bjud in vänner</button></div>
     </div>`;
   }
@@ -435,7 +435,7 @@ function renderHome() {
       <div class="hero-text">${on ? "Du är sugen på en öl" : "Sugen på en öl?"}</div>
       <div class="hero-sub">${on ? dayLabel(S.signal.day) + (S.signal.place ? " · " + esc(S.signal.place) : "") : "Tryck på glaset"}</div>
     </div>
-    ${firstTime ? `<div class="notice"><b>Du har inga vänner i appen än.</b><span>Bjud in någon under Vänner – då kan ni se varandras signaler.</span></div>` : ""}
+    ${firstTime ? `<div class="notice"><b>Du har inga vänner i appen än.</b><span>Bjud in någon under Vänner, då kan ni se varandras signaler.</span></div>` : ""}
     ${showSetup ? setupHtml() : on ? statusHtml() : ""}
     <section class="section"><h2>Sugna vänner</h2>
       <div class="list">${S.feed.length ? S.feed.map(feedRow).join("") : `<p class="empty">Ingen av dina vänner har tänt sin signal för dig.</p>`}</div>
@@ -538,7 +538,7 @@ function renderAccount() {
         : "Öppna webbläsarens meny och välj <b>Installera app</b> eller <b>Lägg till på startskärmen</b>."}</p></section>`}
     ${PROTOTYPE_NOTE}
     <section class="card"><h2>Så funkar det</h2>
-      <p>Du lägger dina vänner i listor. <b>Närmaste</b> ser alltid när du är sugen. Övriga listor väljer du varje gång du tänder signalen. Den som inte får se signalen ser ingenting – inte heller att den finns.</p>
+      <p>Du lägger dina vänner i listor. <b>Närmaste</b> ser alltid när du är sugen. Övriga listor väljer du varje gång du tänder signalen. Den som inte får se signalen ser ingenting, inte heller att den finns.</p>
       <p>Svar går bara till den som tänt signalen. Signalen slocknar av sig själv klockan 02 natten efter den dag du valt.</p>
     </section>
     <div class="btn-row"><button type="button" class="btn btn-danger" id="logout">Logga ut</button></div>`;
